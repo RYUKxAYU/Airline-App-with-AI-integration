@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airline Market Demand Analytics</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.24.1/plotly.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .dashboard-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            max-width: 1400px;
+        }
+        
+        .header-section {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 30px;
+            border-radius: 20px 20px 0 0;
+            text-align: center;
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            margin-bottom: 20px;
+            border-left: 5px solid var(--secondary-color);
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+        
+        .metric-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--secondary-color);
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .filter-section {
+            background: rgba(52, 152, 219, 0.1);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--secondary-color), #2980b9);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 30px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(52, 152, 219, 0.3);
+        }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 50px;
+        }
+        
+        .insight-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--success-color);
+        }
+        
+        .route-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .route-item:last-child {
+            border-bottom: none;
+        }
+        
+        .demand-score {
+            background: var(--success-color);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success-color);
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="dashboard-container">
+            <!-- Header Section -->
+            <div class="header-section">
+                <h1><i class="fas fa-plane"></i> Airline Market Demand Analytics</h1>
+                <p class="mb-0">Real-time insights into airline booking trends across Australia</p>
+                <div class="mt-3">
+                    <span class="status-indicator"></span>
+                    <span id="lastUpdated">Loading...</span>
+                </div>
+            </div>
+            
+            <div class="p-4">
+                <!-- Filters Section -->
+                <div class="filter-section">
+                    <h4 class="mb-3"><i class="fas fa-filter"></i> Data Filters</h4>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Origin City</label>
+                            <input type="text" class="form-control" id="originFilter" placeholder="e.g., Sydney">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Destination City</label>
+                            <input type="text" class="form-control" id="destinationFilter" placeholder="e.g., Melbourne">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Date From</label>
+                            <input type="date" class="form-control" id="dateFromFilter">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Date To</label>
+                            <input type="date" class="form-control" id="dateToFilter">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <div>
+                                <button class="btn btn-primary w-100" onclick="applyFilters()">
+                                    <i class="fas fa-search"></i> Apply Filters
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Key Metrics -->
+                <div class="row" id="metricsSection">
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted mb-1">Total Flights</h6>
+                                    <div class="metric-number" id="totalFlights">-</div>
+                                </div>
+                                <div class="text-secondary">
+                                    <i class="fas fa-plane fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted mb-1">Avg Domestic Price</h6>
+                                    <div class="metric-number" id="avgDomesticPrice">-</div>
+                                </div>
+                                <div class="text-warning">
+                                    <i class="fas fa-dollar-sign fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted mb-1">Avg International Price</h6>
+                                    <div class="metric-number" id="avgIntlPrice">-</div>
+                                </div>
+                                <div class="text-success">
+                                    <i class="fas fa-globe fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="text-muted mb-1">Data Freshness</h6>
+                                    <div class="metric-number" style="font-size: 1.5rem;" id="dataFreshness">Live</div>
+                                </div>
+                                <div class="text-info">
+                                    <i class="fas fa-sync-alt fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Charts Row -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <h5 class="mb-3"><i class="fas fa-chart-bar"></i> Demand by Destination</h5>
+                            <div id="demandChart" style="height: 400px;"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <h5 class="mb-3"><i class="fas fa-chart-line"></i> Price Trends Over Time</h5>
+                            <div id="priceChart" style="height: 400px;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Insights and Popular Routes -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <h5 class="mb-3"><i class="fas fa-lightbulb"></i> AI-Powered Insights</h5>
+                            <div id="insightsContainer">
+                                <div class="loading-spinner">
+                                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                    <p>Analyzing market data...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <h5 class="mb-3"><i class="fas fa-fire"></i> Top Popular Routes</h5>
+                            <div id="popularRoutesContainer">
+                                <div class="loading-spinner">
+                                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                    <p>Loading route data...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Refresh Button -->
+                <div class="text-center mt-4">
+                    <button class="btn btn-primary btn-lg" onclick="refreshData()">
+                        <i class="fas fa-sync-alt"></i> Refresh Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let currentData = null;
+        
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            loadInitialData();
+            setDefaultDates();
+        });
+        
+        function setDefaultDates() {
+            const today = new Date();
+            const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+            
+            document.getElementById('dateFromFilter').value = today.toISOString().split('T')[0];
+            document.getElementById('dateToFilter').value = nextWeek.toISOString().split('T')[0];
+        }
+        
+        async function loadInitialData() {
+            showLoading();
+            try {
+                const response = await fetch('/api/data');
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentData = result.data;
+                    updateDashboard(result.data);
+                    loadCharts();
+                } else {
+                    showError('Failed to load data: ' + result.error);
+                }
+            } catch (error) {
+                showError('Error loading data: ' + error.message);
+            }
+            hideLoading();
+        }
+        
+        function updateDashboard(data) {
+            // Update metrics
+            document.getElementById('totalFlights').textContent = data.total_flights;
+            document.getElementById('avgDomesticPrice').textContent = '$' + data.price_trends.domestic_avg;
+            document.getElementById('avgIntlPrice').textContent = '$' + data.price_trends.international_avg;
+            document.getElementById('lastUpdated').textContent = 'Last updated: ' + data.last_updated;
+            
+            // Update insights
+            updateInsights(data.demand_insights);
+            
+            // Update popular routes
+            updatePopularRoutes(data.popular_routes);
+        }
+        
+        function updateInsights(insights) {
+            const container = document.getElementById('insightsContainer');
+            container.innerHTML = '';
+            
+            if (insights && insights.length > 0) {
+                insights.forEach(insight => {
+                    const insightCard = document.createElement('div');
+                    insightCard.className = 'insight-card';
+                    insightCard.innerHTML = `<i class="fas fa-brain text-success me-2"></i>${insight}`;
+                    container.appendChild(insightCard);
+                });
+            } else {
+                container.innerHTML = '<p class="text-muted">No insights available.</p>';
+            }
+        }
+        
+        function updatePopularRoutes(routes) {
+            const container = document.getElementById('popularRoutesContainer');
+            container.innerHTML = '';
+            
+            if (routes && routes.length > 0) {
+                routes.slice(0, 8).forEach((route, index) => {
+                    const routeItem = document.createElement('div');
+                    routeItem.className = 'route-item';
+                    routeItem.innerHTML = `
+                        <div>
+                            <strong>#${index + 1}</strong> ${route.route}
+                            <small class="text-muted d-block">${route.flight_count} flights</small>
+                        </div>
+                        <div class="demand-score">${route.avg_demand}</div>
+                    `;
+                    container.appendChild(routeItem);
+                });
+            } else {
+                container.innerHTML = '<p class="text-muted">No route data available.</p>';
+            }
+        }
+        
+        async function loadCharts() {
+            await loadDemandChart();
+            await loadPriceChart();
+        }
+        
+        async function loadDemandChart() {
+            try {
+                const response = await fetch('/api/charts/demand');
+                const result = await response.json();
+                
+                if (result.chart) {
+                    const chartData = JSON.parse(result.chart);
+                    Plotly.newPlot('demandChart', chartData.data, chartData.layout, {
+                        responsive: true,
+                        displayModeBar: false
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading demand chart:', error);
+            }
+        }
+        
+        async function loadPriceChart() {
+            try {
+                const response = await fetch('/api/charts/prices');
+                const result = await response.json();
+                
+                if (result.chart) {
+                    const chartData = JSON.parse(result.chart);
+                    Plotly.newPlot('priceChart', chartData.data, chartData.layout, {
+                        responsive: true,
+                        displayModeBar: false
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading price chart:', error);
+            }
+        }
+        
+        async function applyFilters() {
+            const origin = document.getElementById('originFilter').value;
+            const destination = document.getElementById('destinationFilter').value;
+            const dateFrom = document.getElementById('dateFromFilter').value;
+            const dateTo = document.getElementById('dateToFilter').value;
+            
+            const params = new URLSearchParams();
+            if (origin) params.append('origin', origin);
+            if (destination) params.append('destination', destination);
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
+            
+            showLoading();
+            
+            try {
+                const response = await fetch('/filter?' + params.toString());
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateDashboard(result.data);
+                    loadCharts(); // Reload charts with filtered data
+                } else {
+                    showError('Filter failed: ' + result.error);
+                }
+            } catch (error) {
+                showError('Error applying filters: ' + error.message);
+            }
+            
+            hideLoading();
+        }
+        
+        function refreshData() {
+            loadInitialData();
+        }
+        
+        function showLoading() {
+            document.querySelectorAll('.loading-spinner').forEach(spinner => {
+                spinner.style.display = 'block';
+            });
+        }
+        
+        function hideLoading() {
+            document.querySelectorAll('.loading-spinner').forEach(spinner => {
+                spinner.style.display = 'none';
+            });
+        }
+        
+        function showError(message) {
+            alert('Error: ' + message);
+        }
+    </script>
+</body>
+</html>
