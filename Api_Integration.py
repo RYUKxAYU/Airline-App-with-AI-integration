@@ -5,18 +5,13 @@ from datetime import datetime, timedelta
 import pandas as pd
 from typing import List, Dict, Any, Optional
 
-class OpenAIAnalyzer:
-    """
-    Integration with OpenAI API for intelligent analysis of flight data
-    Note: Requires OpenAI API key in environment variables
-    """
-    
+class GeminiAnalyzer:
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
-        self.base_url = "https://api.openai.com/v1"
+        self.api_key = api_key or os.getenv('GEMINI_API_KEY', 'AIzaSyAWKJAemUaM6FTLl0BKuORQ8naxb4S3mF4')
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         self.headers = {
-            "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "X-goog-api-key": self.api_key
         }
     
     def analyze_flight_trends(self, flight_data: List[Dict]) -> Dict[str, Any]:
@@ -30,7 +25,7 @@ class OpenAIAnalyzer:
         data_summary = self._prepare_data_summary(flight_data)
         
         prompt = f"""
-        Analyze the following airline booking data and provide insights about:
+        You are an expert airline industry analyst. Analyze the following airline booking data and provide insights about:
         1. Market demand patterns
         2. Price trends and anomalies  
         3. Popular routes and destinations
@@ -40,7 +35,7 @@ class OpenAIAnalyzer:
         Data Summary:
         {data_summary}
         
-        Please provide clear, actionable insights in JSON format with the following structure:
+        Please provide clear, actionable insights in the following JSON format:
         {{
             "demand_insights": ["insight1", "insight2", ...],
             "price_insights": ["insight1", "insight2", ...],
@@ -48,46 +43,59 @@ class OpenAIAnalyzer:
             "recommendations": ["rec1", "rec2", ...],
             "summary": "Overall market summary"
         }}
+        
+        Focus on practical insights that would help hostel operators understand travel patterns to their cities.
         """
         
         try:
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ]
+            }
+            
             response = requests.post(
-                f"{self.base_url}/chat/completions",
+                self.base_url,
                 headers=self.headers,
-                json={
-                    "model": "gpt-3.5-turbo",
-                    "messages": [
-                        {"role": "system", "content": "You are an airline industry analyst expert at interpreting market data and trends."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "max_tokens": 1000,
-                    "temperature": 0.7
-                }
+                json=payload
             )
             
             if response.status_code == 200:
                 result = response.json()
-                content = result['choices'][0]['message']['content']
-                
-                # Try to parse JSON response
-                try:
-                    insights = json.loads(content)
-                    return insights
-                except json.JSONDecodeError:
-                    # If not JSON, return content as text insights
-                    return {
-                        "demand_insights": [content],
-                        "price_insights": [],
-                        "route_insights": [],
-                        "recommendations": [],
-                        "summary": "AI analysis completed"
-                    }
+                if 'candidates' in result and result['candidates']:
+                    content = result['candidates'][0]['content']['parts'][0]['text']
+                    
+                    try:
+                        if '```json' in content:
+                            content = content.split('```json')[1].split('```')[0]
+                        elif '```' in content:
+                            content = content.split('```')[1].split('```')[0]
+                        
+                        insights = json.loads(content.strip())
+                        return insights
+                    except json.JSONDecodeError:
+                        return {
+                            "demand_insights": [content],
+                            "price_insights": [],
+                            "route_insights": [],
+                            "recommendations": [],
+                            "summary": "AI analysis completed"
+                        }
+                else:
+                    print(f"Gemini API error: No candidates in response")
+                    return self._generate_mock_insights(flight_data)
             else:
-                print(f"OpenAI API error: {response.status_code}")
+                print(f"Gemini API error: {response.status_code} - {response.text}")
                 return self._generate_mock_insights(flight_data)
                 
         except Exception as e:
-            print(f"Error calling OpenAI API: {e}")
+            print(f"Error calling Gemini API: {e}")
             return self._generate_mock_insights(flight_data)
     
     def _prepare_data_summary(self, flight_data: List[Dict]) -> str:
@@ -114,7 +122,6 @@ class OpenAIAnalyzer:
         return json.dumps(summary, indent=2)
     
     def _generate_mock_insights(self, flight_data: List[Dict]) -> Dict[str, Any]:
-        """Generate mock insights when API is not available"""
         
         if not flight_data:
             return {
@@ -177,9 +184,6 @@ class FlightAPIIntegrator:
     def get_flight_offers(self, origin: str, destination: str, departure_date: str) -> List[Dict]:
         """Get flight offers from multiple APIs"""
         
-        # For demonstration, return sample data
-        # Real implementation would make actual API calls
-        
         sample_offers = [
             {
                 'id': f'offer_{i}',
@@ -211,7 +215,7 @@ class FlightAPIIntegrator:
         for i in range(days):
             date = base_date + timedelta(days=i)
             # Add some realistic price variation
-            price_variation = 1 + (0.2 * (i % 7 - 3.5) / 3.5)  # Weekly pattern
+            price_variation = 1 + (0.2 * (i % 7 - 3.5) / 3.5)  
             daily_price = base_price * price_variation
             
             history.append({
@@ -256,14 +260,14 @@ class MarketDataAggregator:
     """Aggregates data from multiple sources for comprehensive market analysis"""
     
     def __init__(self):
-        self.openai_analyzer = OpenAIAnalyzer()
+        self.gemini_analyzer = GeminiAnalyzer()
         self.flight_api = FlightAPIIntegrator()
     
     def get_comprehensive_analysis(self, flight_data: List[Dict]) -> Dict[str, Any]:
         """Get comprehensive market analysis combining multiple data sources"""
         
         # AI-powered insights
-        ai_insights = self.openai_analyzer.analyze_flight_trends(flight_data)
+        ai_insights = self.gemini_analyzer.analyze_flight_trends(flight_data)
         
         # Statistical analysis
         stats = self._calculate_market_stats(flight_data)
@@ -340,8 +344,8 @@ class MarketDataAggregator:
 
 # Example usage
 if __name__ == "__main__":
-    # Test AI analyzer
-    analyzer = OpenAIAnalyzer()
+    # Test Gemini analyzer
+    analyzer = GeminiAnalyzer()
     
     # Sample flight data
     sample_data = [
@@ -351,7 +355,7 @@ if __name__ == "__main__":
     ]
     
     insights = analyzer.analyze_flight_trends(sample_data)
-    print("AI Insights:", json.dumps(insights, indent=2))
+    print("Gemini AI Insights:", json.dumps(insights, indent=2))
     
     # Test comprehensive analysis
     aggregator = MarketDataAggregator()
