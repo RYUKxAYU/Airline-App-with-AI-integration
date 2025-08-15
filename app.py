@@ -9,10 +9,10 @@ import random
 import time
 from collections import defaultdict
 import os
+from api_integrations import GeminiAnalyzer
 
 app = Flask(__name__)
 
-# Configuration
 app.config['SECRET_KEY'] = 'your-secret-key-here'
 
 class AirlineDataProcessor:
@@ -22,10 +22,10 @@ class AirlineDataProcessor:
         self.routes_data = []
         self.price_trends = {}
         self.demand_patterns = {}
+        self.gemini_analyzer = GeminiAnalyzer()
         
     def generate_sample_data(self):
         """Generate realistic sample airline data for demonstration"""
-        # Australian cities and popular international destinations
         cities = [
             'Sydney', 'Melbourne', 'Brisbane', 'Perth', 'Adelaide', 
             'Gold Coast', 'Cairns', 'Darwin', 'Hobart', 'Canberra',
@@ -33,25 +33,21 @@ class AirlineDataProcessor:
             'Los Angeles', 'London', 'Dubai', 'Hong Kong', 'Bali'
         ]
         
-        # Generate route data
         routes = []
         base_date = datetime.now()
         
         for _ in range(100):
-            origin = random.choice(cities[:10])  # Australian cities as origins
+            origin = random.choice(cities[:10]) 
             destination = random.choice(cities)
             while destination == origin:
                 destination = random.choice(cities)
             
-            # Generate realistic pricing based on route type
             is_domestic = destination in cities[:10]
             base_price = random.randint(150, 400) if is_domestic else random.randint(800, 2500)
             
-            # Add seasonal and demand variations
             date_offset = random.randint(1, 90)
             flight_date = base_date + timedelta(days=date_offset)
             
-            # Weekend and holiday premium
             weekend_multiplier = 1.2 if flight_date.weekday() >= 5 else 1.0
             
             routes.append({
@@ -106,8 +102,16 @@ class AirlineDataProcessor:
         }
     
     def get_demand_insights(self, data):
-        """Generate AI-powered insights about demand patterns"""
-        # Simulate API call to AI service for insights
+        """Generate AI-powered insights about demand patterns using Gemini"""
+        try:
+            # Use Gemini AI for advanced insights
+            ai_insights = self.gemini_analyzer.analyze_flight_trends(data)
+            if ai_insights and 'demand_insights' in ai_insights:
+                return ai_insights['demand_insights']
+        except Exception as e:
+            print(f"Error getting AI insights: {e}")
+        
+        # Fallback to basic statistical insights
         insights = []
         
         # Analyze by day of week
